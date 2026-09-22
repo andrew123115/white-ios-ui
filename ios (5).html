@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iOS 多功能格線行事曆 - Dida</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  
+  <!-- FontAwesome for iOS-like icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Inter & Noto Sans TC Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+          },
+          colors: {
+            ios: {
+              bg: '#f2f2f7',
+              blue: '#007aff',
+              pink: '#ff2d55',
+              purple: '#af52de',
+              green: '#34c759',
+              orange: '#ff9500',
+              red: '#ff3b30',
+              card: 'rgba(255, 255, 255, 0.85)',
+            }
+          },
+          boxShadow: {
+            'ios-glow': '0 8px 30px rgba(0, 0, 0, 0.08)',
+            'ios-active': '0 0 0 3px rgba(59, 130, 246, 0.5)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.3s ease;
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.03);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0,0,0,0.15);
+      border-radius: 999px;
+    }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+    
+    .squircle-cell {
+      border-radius: 1.25rem;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .squircle-cell:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.06);
+    }
+
+    .fade-enter-active, .fade-leave-active {
+      transition: opacity 0.25s ease;
+    }
+    .fade-enter-from, .fade-leave-to {
+      opacity: 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 antialiased" id="appBody">
+
+  <div id="app" class="min-h-screen flex flex-col p-3 md:p-6 transition-all duration-500" :style="currentBgStyle">
+    
+    <!-- TOP CONTAINER -->
+    <div class="max-w-7xl w-full mx-auto flex-1 flex flex-col">
+
+      <!-- HEADER TOP BAR & MODAL TRIGGER -->
+      <header class="glass-card rounded-3xl p-5 md:p-6 shadow-xl mb-6 flex flex-col gap-5">
+        
+        <!-- Top Row: Title & Actions -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          
+          <!-- Title & Subtitle -->
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-lg text-2xl flex-shrink-0">
+              <i class="fa-regular fa-calendar-days"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
+                  {{ currentYear }}年 {{ currentMonth }}月
+                </h1>
+                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-sm">
+                  iOS 獨立版
+                </span>
+                <button @click="showMembershipModal = true" class="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 transition flex items-center gap-1.5 border border-amber-300">
+                  <i class="fa-solid fa-crown text-amber-500"></i>
+                  <span>{{ userTier }}</span>
+                  <span class="bg-amber-200 px-1.5 py-0.5 rounded-full text-[10px]">{{ userCoins }} 🪙</span>
+                </button>
+              </div>
+              <p class="text-xs md:text-sm text-slate-500 font-medium mt-1">
+                已整合您所有的行程與事項
+              </p>
+            </div>
+          </div>
+
+          <!-- Controls: Month Nav & Top Buttons -->
+          <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between lg:justify-end">
+            <!-- Navigation Arrow Group -->
+            <div class="inline-flex items-center bg-slate-100/80 rounded-2xl p-1 border border-slate-200/60 shadow-inner">
+              <button @click="changeMonth(-1)" class="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 transition flex items-center justify-center text-sm">
+                <i class="fa-solid fa-chevron-left"></i>
+              </button>
+              <button @click="goToday" class="px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-white rounded-xl transition">
+                今天
+              </button>
+              <button @click="changeMonth(1)" class="w-9 h-9 rounded-xl hover:bg-white text-slate-600 hover:text-slate-900 transition flex items-center justify-center text-sm">
+                <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+
+            <!-- Action Pill Buttons -->
+            <button @click="showBgModal = true" class="px-4 py-2.5 rounded-2xl bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-semibold text-xs md:text-sm transition shadow-md shadow-pink-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-palette"></i>
+              <span>換背景</span>
+            </button>
+
+            <button @click="openAddEventModal()" class="px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-xs md:text-sm transition shadow-md shadow-blue-200 flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i>
+              <span>新增行程</span>
+            </button>
+
+            <!-- More Options Button -->
+            <button @click="showMenuModal = true" class="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition flex items-center justify-center text-sm border border-slate-200">
+              <i class="fa-solid fa-ellipsis"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Navigation Tab Selector -->
+        <div class="bg-slate-200/60 p-1.5 rounded-2xl flex items-center gap-1 max-w-xl">
+          <button @click="switchTab('month')" :class="activeTab === 'month' ? 'bg-white text-blue-600 shadow-md font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="flex-1 py-2 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-2">
+            <span>🗓️</span>
+            <span>月檢視</span>
+          </button>
+          <button @click="switchTab('week')" :class="activeTab === 'week' ? 'bg-white text-blue-600 shadow-md font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="flex-1 py-2 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
+            <span>☰</span>
+            <span>本週待辦</span>
+            <span v-if="userTier === 'FREE'" class="text-[9px] px-1.5 py-0.5 bg-amber-500 text-white rounded-md font-bold shadow-xs">PRO</span>
+          </button>
+          <button @click="switchTab('tags')" :class="activeTab === 'tags' ? 'bg-white text-blue-600 shadow-md font-bold' : 'text-slate-600 hover:text-slate-900 font-medium'" class="flex-1 py-2 rounded-xl text-xs sm:text-sm transition flex items-center justify-center gap-1.5">
+            <span>📊</span>
+            <span>標籤獨立統整</span>
+            <span v-if="userTier === 'FREE'" class="text-[9px] px-1.5 py-0.5 bg-amber-500 text-white rounded-md font-bold shadow-xs">PRO</span>
+          </button>
+        </div>
+
+      </header>
+
+      <!-- TAB 1: MONTH GRID VIEW -->
+      <main v-if="activeTab === 'month'" class="flex-1 flex flex-col">
+        <!-- Weekday Headers -->
+        <div class="grid grid-cols-7 gap-2 md:gap-3 mb-3 text-center">
+          <div class="text-red-500 font-bold text-xs sm:text-sm py-1">日</div>
+          <div class="text-slate-600 font-bold text-xs sm:text-sm py-1">一</div>
+          <div class="text-slate-600 font-bold text-xs sm:text-sm py-1">二</div>
+          <div class="text-slate-600 font-bold text-xs sm:text-sm py-1">三</div>
+          <div class="text-slate-600 font-bold text-xs sm:text-sm py-1">四</div>
+          <div class="text-slate-600 font-bold text-xs sm:text-sm py-1">五</div>
+          <div class="text-indigo-600 font-bold text-xs sm:text-sm py-1">六</div>
+        </div>
+
+        <!-- Month Grid Cells -->
+        <div class="grid grid-cols-7 gap-2 sm:gap-3 flex-1 auto-rows-fr">
+          <div 
+            v-for="cell in monthGridCells" 
+            :key="cell.dateStr"
+            @click="selectDay(cell)"
+            :class="[
+              'squircle-cell bg-white/90 backdrop-blur-sm p-2 flex flex-col justify-between cursor-pointer border relative min-h-[95px] sm:min-h-[110px]',
+              cell.isCurrentMonth ? 'border-slate-100 text-slate-800' : 'border-slate-100/50 text-slate-300 bg-white/40',
+              selectedDateStr === cell.dateStr ? '!border-2 !border-blue-500 shadow-lg ring-2 ring-blue-200' : 'shadow-sm'
+            ]"
+          >
+            <!-- Top Row: Date & Sticker Badge -->
+            <div class="flex items-center justify-between w-full">
+              <span :class="[
+                'text-xs sm:text-sm font-bold w-6 h-6 rounded-full flex items-center justify-center',
+                isToday(cell.dateStr) ? 'bg-blue-600 text-white' : ''
+              ]">
+                {{ cell.dayNum }}
+              </span>
+
+              <!-- Sticker Preview Badge -->
+              <img v-if="getStickerForDate(cell.dateStr)" :src="getStickerForDate(cell.dateStr)" class="w-7 h-7 rounded-lg object-cover shadow-sm border border-white" alt="Sticker" />
+            </div>
+
+            <!-- Task Titles (Truncated list) -->
+            <div class="mt-1 flex-1 overflow-hidden space-y-1">
+              <div 
+                v-for="evt in cell.events.slice(0, 2)" 
+                :key="evt.id"
+                class="text-[10px] sm:text-xs leading-tight font-medium truncate text-slate-700"
+                :class="{'line-through opacity-50': evt.completed}"
+              >
+                {{ evt.title }}
+              </div>
+              <div v-if="cell.events.length > 2" class="text-[9px] text-slate-400 font-semibold">
+                +{{ cell.events.length - 2 }} 更多
+              </div>
+            </div>
+
+            <!-- Bottom Row: Category Colored Dots -->
+            <div class="flex items-center gap-1.5 mt-1 pt-1 flex-wrap min-h-[12px]">
+              <span 
+                v-for="evt in cell.events" 
+                :key="'dot-' + evt.id"
+                class="w-2.5 h-2.5 rounded-full inline-block shadow-xs flex-shrink-0"
+                :style="{ backgroundColor: getCategoryColor(evt.category) }"
+                :title="evt.title"
+              ></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selected Day Bottom Quick View Panel -->
+        <div v-if="selectedDayObj" class="mt-6 glass-card rounded-3xl p-5 shadow-xl border border-white/80 animate-fade-in">
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-200/80">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">
+                {{ selectedDayObj.dayNum }}
+              </div>
+              <div>
+                <h3 class="font-bold text-slate-900 text-base">
+                  {{ selectedDayObj.dateStr }} 行程細節
+                </h3>
+                <p class="text-xs text-slate-500">
+                  共 {{ selectedDayObj.events.length }} 項事項 / {{ selectedDayObj.events.filter(e => e.completed).length }} 已完成
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button @click="openStickerUploadModal(selectedDayObj.dateStr)" class="px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold transition flex items-center gap-1">
+                <i class="fa-solid fa-face-smile"></i>
+                <span>貼圖相片</span>
+              </button>
+              <button @click="openAddEventModal(selectedDayObj.dateStr)" class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition flex items-center gap-1">
+                <i class="fa-solid fa-plus"></i>
+                <span>新增事項</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Day Sticker Render (Enlarged to 200px x 200px) -->
+          <div v-if="getStickerForDate(selectedDayObj.dateStr)" class="mb-5 flex flex-col sm:flex-row items-center sm:items-start gap-4 bg-purple-50/80 p-4 rounded-3xl border border-purple-100 shadow-inner">
+            <div class="relative group flex-shrink-0">
+              <img :src="getStickerForDate(selectedDayObj.dateStr)" class="w-[200px] h-[200px] rounded-2xl object-cover shadow-md border-2 border-white/90 bg-white" alt="Day Sticker 200x200" />
+              <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition rounded-2xl flex items-center justify-center">
+                <span class="text-white text-xs font-bold bg-black/60 px-2.5 py-1 rounded-full">200 × 200 px</span>
+              </div>
+            </div>
+            <div class="flex-1 flex flex-col justify-between text-center sm:text-left h-full py-1">
+              <div>
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-200/70 text-purple-800 text-xs font-bold mb-2">
+                  <i class="fa-solid fa-star"></i>
+                  <span>今日專屬大貼圖 (200x200)</span>
+                </div>
+                <h4 class="text-base font-bold text-slate-800">風格特色紀錄</h4>
+                <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                  貼圖已成功放大為 200px * 200px 高畫質獨立展現，讓您的紀念照片與專屬符號更加清晰明亮！
+                </p>
+              </div>
+              <div class="mt-4 flex items-center justify-center sm:justify-start gap-2">
+                <button @click="openStickerUploadModal(selectedDayObj.dateStr)" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold transition shadow-sm flex items-center gap-1">
+                  <i class="fa-solid fa-arrows-rotate"></i>
+                  <span>更換貼圖</span>
+                </button>
+                <button @click="removeSticker(selectedDayObj.dateStr)" class="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-xl text-xs font-semibold transition flex items-center gap-1">
+                  <i class="fa-solid fa-trash"></i>
+                  <span>刪除貼圖</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Events List for Selected Day -->
+          <div v-if="selectedDayObj.events.length === 0" class="py-8 text-center text-slate-400 text-sm">
+            <i class="fa-regular fa-calendar-xmark text-2xl mb-2 block"></i>
+            這天還沒有規劃任何行程喔，點擊上方「新增事項」來建立！
+          </div>
+
+          <div v-else class="space-y-2 max-h-60 overflow-y-auto pr-1">
+            <div 
+              v-for="evt in selectedDayObj.events" 
+              :key="evt.id"
+              class="flex items-center justify-between p-3 rounded-2xl bg-white/90 border border-slate-100 shadow-xs hover:border-blue-200 transition"
+            >
+              <div class="flex items-center gap-3 flex-1 min-w-0">
+                <input 
+                  type="checkbox" 
+                  :checked="evt.completed"
+                  @change="toggleEventComplete(evt.id)"
+                  class="w-5 h-5 rounded-md text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span class="w-3 h-3 rounded-full flex-shrink-0" :style="{ backgroundColor: getCategoryColor(evt.category) }"></span>
+                <span class="text-sm font-medium truncate" :class="{'line-through text-slate-400': evt.completed}">
+                  {{ evt.title }}
+                </span>
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600">
+                  {{ getCategoryLabel(evt.category) }}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button @click="deleteEvent(evt.id)" class="w-8 h-8 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition flex items-center justify-center">
+                  <i class="fa-regular fa-trash-can text-xs"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- TAB 2: WEEK TODO VIEW -->
+      <main v-if="activeTab === 'week'" class="flex-1 glass-card rounded-3xl p-6 shadow-xl border border-white/80">
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-slate-200">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">本週待辦與任務清單</h2>
+            <p class="text-xs text-slate-500 mt-1">集中檢視這週所有待辦事項並進行勾選</p>
+          </div>
+          <button @click="openAddEventModal()" class="px-4 py-2 rounded-2xl bg-blue-600 text-white font-semibold text-xs transition hover:bg-blue-700">
+            + 新增任務
+          </button>
+        </div>
+
+        <div class="space-y-6">
+          <div v-for="day in currentWeekDays" :key="day.dateStr" class="bg-white/80 rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-slate-800">{{ day.dateStr }}</span>
+                <span class="text-xs text-slate-500">({{ day.dayOfWeek }})</span>
+                <span v-if="isToday(day.dateStr)" class="px-2 py-0.5 text-[10px] bg-blue-600 text-white rounded-full font-bold">今天</span>
+              </div>
+              <span class="text-xs text-slate-400 font-medium">{{ day.events.length }} 項</span>
+            </div>
+
+            <div v-if="day.events.length === 0" class="text-xs text-slate-400 py-2">本日無待辦事項</div>
+            <div v-else class="space-y-2">
+              <div v-for="evt in day.events" :key="evt.id" class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
+                <div class="flex items-center gap-2.5">
+                  <input type="checkbox" :checked="evt.completed" @change="toggleEventComplete(evt.id)" class="w-4 h-4 text-blue-600 rounded" />
+                  <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: getCategoryColor(evt.category) }"></span>
+                  <span class="text-xs font-medium" :class="{'line-through text-slate-400': evt.completed}">{{ evt.title }}</span>
+                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-white text-slate-500 border border-slate-200">
+                  {{ getCategoryLabel(evt.category) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- TAB 3: CATEGORY TAG SUMMARY VIEW -->
+      <main v-if="activeTab === 'tags'" class="flex-1 glass-card rounded-3xl p-6 shadow-xl border border-white/80">
+        <div class="mb-6 pb-4 border-b border-slate-200">
+          <h2 class="text-xl font-bold text-slate-900">標籤獨立統整與數據分析</h2>
+          <p class="text-xs text-slate-500 mt-1">依類別統計您所有的行事曆規劃</p>
+        </div>
+
+        <!-- Summary Cards Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          <div v-for="cat in categories" :key="cat.key" class="bg-white/90 p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+              <span class="w-3 h-3 rounded-full" :style="{ backgroundColor: cat.color }"></span>
+              <span class="text-xs font-bold text-slate-400">{{ getCategoryCount(cat.key) }} 項</span>
+            </div>
+            <span class="text-sm font-bold text-slate-800">{{ cat.label }}</span>
+            <div class="mt-3 bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div class="h-full transition-all" :style="{ width: getCategoryPercentage(cat.key) + '%', backgroundColor: cat.color }"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filtered Category Tasks -->
+        <div class="bg-white/90 rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-slate-800 text-sm">類別篩選檢視</h3>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <button 
+                @click="selectedCategoryFilter = 'all'"
+                :class="selectedCategoryFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'"
+                class="px-3 py-1 rounded-xl text-xs font-medium transition"
+              >
+                全部
+              </button>
+              <button 
+                v-for="cat in categories" 
+                :key="cat.key"
+                @click="selectedCategoryFilter = cat.key"
+                :class="selectedCategoryFilter === cat.key ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600'"
+                :style="selectedCategoryFilter === cat.key ? { backgroundColor: cat.color } : {}"
+                class="px-3 py-1 rounded-xl text-xs font-medium transition"
+              >
+                {{ cat.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- List -->
+          <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
+            <div v-for="evt in filteredEventsByTag" :key="evt.id" class="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div class="flex items-center gap-3">
+                <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: getCategoryColor(evt.category) }"></span>
+                <span class="text-xs font-bold text-slate-500">{{ evt.date }}</span>
+                <span class="text-xs font-medium text-slate-800" :class="{'line-through text-slate-400': evt.completed}">{{ evt.title }}</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-white font-semibold text-slate-600 border border-slate-200">
+                {{ getCategoryLabel(evt.category) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </main>
+
+    </div>
+
+    <!-- MODAL 1: ADD / EDIT EVENT MODAL -->
+    <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-900">新增行程與事項</h3>
+          <button @click="showAddModal = false" class="text-slate-400 hover:text-slate-600 text-sm">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">日期</label>
+            <input type="date" v-model="newEvent.date" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">事項名稱</label>
+            <input type="text" v-model="newEvent.title" placeholder="例如：鋼琴課、完成作業..." class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">分類標籤</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button 
+                v-for="cat in categories" 
+                :key="cat.key"
+                type="button"
+                @click="newEvent.category = cat.key"
+                :class="newEvent.category === cat.key ? 'border-2 border-slate-800 bg-slate-50' : 'border border-slate-200'"
+                class="p-2 rounded-xl text-left flex items-center gap-2 transition"
+              >
+                <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: cat.color }"></span>
+                <span class="text-xs font-medium text-slate-700">{{ cat.label }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-end gap-2">
+          <button @click="showAddModal = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition">
+            取消
+          </button>
+          <button @click="saveNewEvent" class="px-5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition shadow-md shadow-blue-200">
+            儲存行程
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: STICKER / PHOTO UPLOAD MODAL -->
+    <div v-if="showStickerModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center">
+        <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl mx-auto mb-3">
+          <i class="fa-solid fa-camera"></i>
+        </div>
+        <h3 class="text-base font-bold text-slate-900 mb-1">上傳日期貼圖 / 照片</h3>
+        <p class="text-xs text-slate-500 mb-4">系統將自動壓縮裁切為 200×200px 獨特高畫質貼圖</p>
+
+        <input type="file" ref="stickerInput" accept="image/*" @change="handleStickerSelect" class="hidden" />
+
+        <div @click="$refs.stickerInput.click()" class="border-2 border-dashed border-purple-200 hover:border-purple-400 bg-purple-50/50 rounded-2xl p-6 cursor-pointer transition mb-4 group">
+          <i class="fa-solid fa-cloud-arrow-up text-3xl text-purple-400 group-hover:scale-110 transition mb-2 block"></i>
+          <span class="text-xs font-bold text-purple-700">點擊選擇照片 / 相片 (200x200)</span>
+        </div>
+
+        <div class="flex justify-end">
+          <button @click="showStickerModal = false" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100">
+            關閉
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: BACKGROUND SWITCHER MODAL -->
+    <div v-if="showBgModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold text-slate-900">🎨 客製化背景樣式</h3>
+          <button @click="showBgModal = false" class="text-slate-400 hover:text-slate-600">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="space-y-3 mb-4">
+          <button 
+            v-for="bg in bgPresets" 
+            :key="bg.id"
+            @click="applyBgPreset(bg)"
+            class="w-full p-3 rounded-2xl border border-slate-200 flex items-center justify-between hover:border-blue-500 transition text-left"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-xl border border-slate-300" :style="{ background: bg.value }"></div>
+              <span class="text-xs font-bold text-slate-800">{{ bg.name }}</span>
+            </div>
+            <i v-if="selectedBgId === bg.id" class="fa-solid fa-circle-check text-blue-600 text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Custom Image Background -->
+        <div class="border-t border-slate-100 pt-3">
+          <input type="file" ref="bgFileInput" accept="image/*" @change="handleBgImageUpload" class="hidden" />
+          <button @click="$refs.bgFileInput.click()" class="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-image"></i>
+            <span>上傳自訂背景照片</span>
+          </button>
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button @click="showBgModal = false" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-white">
+            完成
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 4: MEMBERSHIP & 7-DAY TRIAL SYSTEM -->
+    <div v-if="showMembershipModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-crown text-amber-500 text-xl"></i>
+            <h3 class="text-lg font-bold text-slate-900">會員與金幣獎勵</h3>
+          </div>
+          <button @click="showMembershipModal = false" class="text-slate-400 hover:text-slate-600">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- Daily Check-in -->
+        <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl p-4 shadow-lg mb-4 flex items-center justify-between">
+          <div>
+            <div class="text-xs font-medium text-amber-100">每日簽到系統</div>
+            <div class="text-lg font-extrabold mt-0.5">目前擁有 {{ userCoins }} 金幣</div>
+          </div>
+          <button 
+            @click="doDailyCheckIn" 
+            :disabled="hasCheckedInToday"
+            :class="hasCheckedInToday ? 'bg-white/30 text-white cursor-not-allowed' : 'bg-white text-amber-800 hover:bg-amber-50 shadow-md'"
+            class="px-4 py-2 rounded-xl font-bold text-xs transition"
+          >
+            {{ hasCheckedInToday ? '今日已簽到' : '🎁 每日簽到 (+1)' }}
+          </button>
+        </div>
+
+        <!-- 7-Day Trial Box -->
+        <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-4">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-indigo-900">⚡ 7 天免費體驗 PRO MAX 方案</span>
+            <span v-if="trialActive" class="px-2 py-0.5 rounded-full text-[10px] bg-indigo-600 text-white font-bold">體驗進行中</span>
+          </div>
+          <p class="text-[11px] text-indigo-700 leading-relaxed mb-3">
+            免費開啟 7 天 PRO MAX 尊榮體驗！<br>
+            <strong class="text-indigo-900">⚠️ 注意規則：</strong>系統將於每日登入時檢測，若<strong>中途一日未連續簽到登入</strong>，體驗資格將立即中斷並重置為 FREE 版！
+          </p>
+
+          <button 
+            v-if="!trialActive" 
+            @click="activate7DayTrial" 
+            class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-md shadow-indigo-200"
+          >
+            🚀 立即開啟 7 天體驗版本
+          </button>
+          <div v-else class="text-center text-xs font-bold text-indigo-800">
+            體驗剩餘 {{ trialDaysLeft }} 天 (每日持續登入即可維持)
+          </div>
+        </div>
+
+        <!-- Tier Status List -->
+        <div class="space-y-2 text-xs">
+          <div class="p-3 rounded-xl border flex items-center justify-between" :class="userTier === 'FREE' ? 'border-slate-800 bg-slate-50' : 'border-slate-200'">
+            <div>
+              <div class="font-bold text-slate-800">FREE 一般版本</div>
+              <div class="text-[10px] text-slate-500">標準月月日曆與基本行程紀錄</div>
+            </div>
+            <span class="font-bold text-slate-600">免費</span>
+          </div>
+
+          <div class="p-3 rounded-xl border flex items-center justify-between" :class="userTier === 'PRO' ? 'border-amber-500 bg-amber-50' : 'border-slate-200'">
+            <div>
+              <div class="font-bold text-slate-800">PRO 進階版</div>
+              <div class="text-[10px] text-slate-500">解鎖本週待辦、標籤獨立統整與客製背景貼圖</div>
+            </div>
+            <button v-if="userTier !== 'PRO' && userTier !== 'PRO MAX'" @click="upgradeTier('PRO', 7)" class="px-3 py-1 bg-amber-500 text-white rounded-lg font-bold">
+              7 金幣兌換
+            </button>
+          </div>
+
+          <div class="p-3 rounded-xl border flex items-center justify-between" :class="userTier === 'PRO MAX' ? 'border-purple-500 bg-purple-50' : 'border-slate-200'">
+            <div>
+              <div class="font-bold text-slate-800">PRO MAX 尊榮版</div>
+              <div class="text-[10px] text-slate-500">包含標籤統計分析與全套尊榮功能</div>
+            </div>
+            <button v-if="userTier !== 'PRO MAX'" @click="upgradeTier('PRO MAX', 20)" class="px-3 py-1 bg-purple-600 text-white rounded-lg font-bold">
+              20 金幣兌換
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-5 flex justify-end">
+          <button @click="showMembershipModal = false" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold">
+            關閉
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 5: MENU / BACKUP / RESET MODAL -->
+    <div v-if="showMenuModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-bold text-slate-900">⚙️ 更多選項與資料管理</h3>
+          <button @click="showMenuModal = false" class="text-slate-400 hover:text-slate-600">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          <button @click="exportDataJSON" class="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left text-xs font-bold text-slate-700 flex items-center justify-between">
+            <span>📥 匯出資料備份 (JSON)</span>
+            <i class="fa-solid fa-download text-slate-400"></i>
+          </button>
+
+          <button @click="triggerImportJSON" class="w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left text-xs font-bold text-slate-700 flex items-center justify-between">
+            <span>📤 匯入備份資料</span>
+            <i class="fa-solid fa-upload text-slate-400"></i>
+          </button>
+          <input type="file" ref="importFileInput" accept=".json" @change="handleImportJSON" class="hidden" />
+
+          <button @click="resetToDefaultData" class="w-full p-3 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-left text-xs font-bold text-red-600 flex items-center justify-between">
+            <span>🔄 清空所有行程與紀錄</span>
+            <i class="fa-solid fa-rotate-right text-red-400"></i>
+          </button>
+        </div>
+
+        <div class="mt-5 flex justify-end">
+          <button @click="showMenuModal = false" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold">
+            完成
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div v-if="toastMessage" class="fixed bottom-6 right-6 z-50 bg-slate-900/90 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 border border-slate-700 animate-bounce">
+      <span>🔔</span>
+      <span>{{ toastMessage }}</span>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // App Navigation & View State
+        const activeTab = ref('month'); // 'month', 'week', 'tags'
+        const currentYear = ref(2026);
+        const currentMonth = ref(9); // 1-12 (9 = September, 10 = October)
+        const selectedDateStr = ref('2026-09-24');
+
+        // Modals
+        const showAddModal = ref(false);
+        const showStickerModal = ref(false);
+        const showBgModal = ref(false);
+        const showMembershipModal = ref(false);
+        const showMenuModal = ref(false);
+
+        // Toast
+        const toastMessage = ref('');
+        const showToast = (msg) => {
+          toastMessage.value = msg;
+          setTimeout(() => { toastMessage.value = ''; }, 3500);
+        };
+
+        // Membership & Gamification State
+        const userTier = ref('FREE'); // FREE, PRO, PRO MAX
+        const userCoins = ref(5);
+        const lastCheckInDate = ref('');
+        const trialActive = ref(false);
+        const trialStartDate = ref('');
+        const trialDaysLeft = ref(7);
+        const lastLoginDate = ref('');
+
+        // Background Customizer State
+        const selectedBgId = ref('pastel');
+        const customBgImage = ref('');
+        const bgPresets = [
+          { id: 'pastel', name: 'iOS 柔和粉紫漸層 (預設)', value: 'linear-gradient(135deg, #fbcfe8 0%, #e0e7ff 50%, #f3e8ff 100%)' },
+          { id: 'gray', name: 'iOS 經典淺灰', value: '#f2f2f7' },
+          { id: 'aurora', name: '極光薄荷綠', value: 'linear-gradient(135deg, #a7f3d0 0%, #7dd3fc 50%, #c084fc 100%)' },
+          { id: 'sunset', name: '夕陽暮光粉', value: 'linear-gradient(135deg, #fed7aa 0%, #fbcfe8 50%, #ddd6fe 100%)' },
+          { id: 'dark', name: '極簡深色夜間', value: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%)' },
+        ];
+
+        // Categories Configuration
+        const categories = [
+          { key: 'important', label: '重要', color: '#ef4444' }, // Red
+          { key: 'personal', label: '個人', color: '#10b981' },  // Green
+          { key: 'learning', label: '學習', color: '#a855f7' },  // Purple
+          { key: 'work', label: '工作', color: '#3b82f6' },      // Blue
+          { key: 'general', label: '一般', color: '#f97316' },   // Orange
+        ];
+
+        // Empty Schedule Items for a clean calendar
+        const defaultEvents = [];
+
+        const events = ref([]);
+        const stickersMap = ref({}); // { '2026-09-24': 'data:image...' }
+
+        // New Event Form State
+        const newEvent = ref({
+          date: '2026-09-24',
+          title: '',
+          category: 'learning'
+        });
+
+        // Filter state for Tab 3
+        const selectedCategoryFilter = ref('all');
+
+        // Helper: Format Date YYYY-MM-DD
+        const formatDateStr = (y, m, d) => {
+          const mm = String(m).padStart(2, '0');
+          const dd = String(d).padStart(2, '0');
+          return `${y}-${mm}-${dd}`;
+        };
+
+        const todayStr = () => {
+          const now = new Date();
+          return formatDateStr(now.getFullYear(), now.getMonth() + 1, now.getDate());
+        };
+
+        // Load & Save LocalStorage Persistence
+        const loadLocalStorage = () => {
+          const savedEvents = localStorage.getItem('dida_events_v2');
+          if (savedEvents) {
+            events.value = JSON.parse(savedEvents);
+          } else {
+            events.value = [...defaultEvents];
+          }
+
+          const savedStickers = localStorage.getItem('dida_stickers_v2');
+          if (savedStickers) {
+            stickersMap.value = JSON.parse(savedStickers);
+          }
+
+          const savedTier = localStorage.getItem('dida_tier');
+          if (savedTier) userTier.value = savedTier;
+
+          const savedCoins = localStorage.getItem('dida_coins');
+          if (savedCoins) userCoins.value = parseInt(savedCoins, 10);
+
+          const savedBg = localStorage.getItem('dida_bg');
+          if (savedBg) selectedBgId.value = savedBg;
+
+          const savedBgImg = localStorage.getItem('dida_bg_img');
+          if (savedBgImg) customBgImage.value = savedBgImg;
+
+          // Check-in and 7-Day Trial Persistence
+          lastCheckInDate.value = localStorage.getItem('dida_checkin_date') || '';
+          trialActive.value = localStorage.getItem('dida_trial_active') === 'true';
+          trialStartDate.value = localStorage.getItem('dida_trial_start') || '';
+          lastLoginDate.value = localStorage.getItem('dida_last_login') || '';
+
+          // 7-Day Trial Daily Login Check Logic
+          checkDailyLoginStreak();
+
+          // Ensure tab is accessible for current tier
+          if (userTier.value === 'FREE' && activeTab.value !== 'month') {
+            activeTab.value = 'month';
+          }
+        };
+
+        const saveLocalStorage = () => {
+          localStorage.setItem('dida_events_v2', JSON.stringify(events.value));
+          localStorage.setItem('dida_stickers_v2', JSON.stringify(stickersMap.value));
+          localStorage.setItem('dida_tier', userTier.value);
+          localStorage.setItem('dida_coins', userCoins.value.toString());
+          localStorage.setItem('dida_bg', selectedBgId.value);
+          if (customBgImage.value) {
+            localStorage.setItem('dida_bg_img', customBgImage.value);
+          } else {
+            localStorage.removeItem('dida_bg_img');
+          }
+          localStorage.setItem('dida_checkin_date', lastCheckInDate.value);
+          localStorage.setItem('dida_trial_active', trialActive.value.toString());
+          localStorage.setItem('dida_trial_start', trialStartDate.value);
+          localStorage.setItem('dida_last_login', lastLoginDate.value);
+        };
+
+        // Check Login Streak for 7-Day Trial
+        const checkDailyLoginStreak = () => {
+          const today = todayStr();
+          if (trialActive.value) {
+            if (lastLoginDate.value && lastLoginDate.value !== today) {
+              const last = new Date(lastLoginDate.value);
+              const curr = new Date(today);
+              const diffTime = Math.abs(curr - last);
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+              if (diffDays > 1) {
+                // Streak broken! Reset trial to FREE version immediately
+                trialActive.value = false;
+                userTier.value = 'FREE';
+                showToast('⚠️ 由於未每日連續登入簽到，您的 7 天體驗已被中斷重置為 FREE 版！');
+              } else {
+                // Calculate trial days left
+                const start = new Date(trialStartDate.value);
+                const elapsedDays = Math.floor((curr - start) / (1000 * 60 * 60 * 24));
+                trialDaysLeft.value = Math.max(0, 7 - elapsedDays);
+                if (trialDaysLeft.value <= 0) {
+                  trialActive.value = false;
+                  userTier.value = 'FREE';
+                  showToast('🎉 您的 7 天 PRO MAX 體驗期已順利結束！');
+                }
+              }
+            }
+          }
+          lastLoginDate.value = today;
+          saveLocalStorage();
+        };
+
+        // Calculated Background Style
+        const currentBgStyle = computed(() => {
+          if (selectedBgId.value === 'custom' && customBgImage.value) {
+            return {
+              backgroundImage: `url(${customBgImage.value})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            };
+          }
+          const preset = bgPresets.find(b => b.id === selectedBgId.value);
+          return { background: preset ? preset.value : bgPresets[0].value };
+        });
+
+        // Compute Calendar Month Grid Cells
+        const monthGridCells = computed(() => {
+          const year = currentYear.value;
+          const month = currentMonth.value; // 1-indexed
+
+          // First day of month
+          const firstDay = new Date(year, month - 1, 1);
+          const firstDayOfWeek = firstDay.getDay(); // 0 = Sunday
+
+          // Days in current month
+          const totalDaysInMonth = new Date(year, month, 0).getDate();
+
+          // Days in previous month
+          const prevMonthLastDay = new Date(year, month - 1, 0).getDate();
+
+          const cells = [];
+
+          // Previous month padding cells
+          for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+            const dayNum = prevMonthLastDay - i;
+            const prevM = month === 1 ? 12 : month - 1;
+            const prevY = month === 1 ? year - 1 : year;
+            const dateStr = formatDateStr(prevY, prevM, dayNum);
+            cells.push({
+              dateStr,
+              dayNum,
+              isCurrentMonth: false,
+              events: events.value.filter(e => e.date === dateStr)
+            });
+          }
+
+          // Current month cells
+          for (let d = 1; d <= totalDaysInMonth; d++) {
+            const dateStr = formatDateStr(year, month, d);
+            cells.push({
+              dateStr,
+              dayNum: d,
+              isCurrentMonth: true,
+              events: events.value.filter(e => e.date === dateStr)
+            });
+          }
+
+          // Next month padding cells to complete 35 or 42 grid cells
+          const totalGridCount = cells.length > 35 ? 42 : 35;
+          const remaining = totalGridCount - cells.length;
+          for (let j = 1; j <= remaining; j++) {
+            const nextM = month === 12 ? 1 : month + 1;
+            const nextY = month === 12 ? year + 1 : year;
+            const dateStr = formatDateStr(nextY, nextM, j);
+            cells.push({
+              dateStr,
+              dayNum: j,
+              isCurrentMonth: false,
+              events: events.value.filter(e => e.date === dateStr)
+            });
+          }
+
+          return cells;
+        });
+
+        // Selected Day Details Object
+        const selectedDayObj = computed(() => {
+          const cell = monthGridCells.value.find(c => c.dateStr === selectedDateStr.value);
+          if (cell) return cell;
+          return {
+            dateStr: selectedDateStr.value,
+            dayNum: parseInt(selectedDateStr.value.split('-')[2], 10),
+            isCurrentMonth: true,
+            events: events.value.filter(e => e.date === selectedDateStr.value)
+          };
+        });
+
+        // Current Week Days for Tab 2
+        const currentWeekDays = computed(() => {
+          const selected = new Date(selectedDateStr.value);
+          const dayOfWeek = selected.getDay();
+          const sunday = new Date(selected);
+          sunday.setDate(selected.getDate() - dayOfWeek);
+
+          const week = [];
+          const weekDayNames = ['日', '一', '二', '三', '四', '五', '六'];
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(sunday);
+            d.setDate(sunday.getDate() + i);
+            const dateStr = formatDateStr(d.getFullYear(), d.getMonth() + 1, d.getDate());
+            week.push({
+              dateStr,
+              dayOfWeek: weekDayNames[i],
+              events: events.value.filter(e => e.date === dateStr)
+            });
+          }
+          return week;
+        });
+
+        // Filtered Events for Tag Dashboard Tab 3
+        const filteredEventsByTag = computed(() => {
+          if (selectedCategoryFilter.value === 'all') return events.value;
+          return events.value.filter(e => e.category === selectedCategoryFilter.value);
+        });
+
+        // Category Helpers
+        const getCategoryColor = (catKey) => {
+          const found = categories.find(c => c.key === catKey);
+          return found ? found.color : '#94a3b8';
+        };
+
+        const getCategoryLabel = (catKey) => {
+          const found = categories.find(c => c.key === catKey);
+          return found ? found.label : '未分類';
+        };
+
+        const getCategoryCount = (catKey) => {
+          return events.value.filter(e => e.category === catKey).length;
+        };
+
+        const getCategoryPercentage = (catKey) => {
+          if (events.value.length === 0) return 0;
+          return Math.round((getCategoryCount(catKey) / events.value.length) * 100);
+        };
+
+        const getStickerForDate = (dateStr) => {
+          return stickersMap.value[dateStr] || null;
+        };
+
+        const isToday = (dateStr) => {
+          return dateStr === todayStr();
+        };
+
+        // Switch Tab with PRO / PRO MAX Permissions Check
+        const switchTab = (tab) => {
+          if ((tab === 'week' || tab === 'tags') && userTier.value === 'FREE') {
+            showToast('🔒「本週待辦」與「標籤獨立統整」為 PRO / PRO MAX 專屬功能！');
+            showMembershipModal.value = true;
+            return;
+          }
+          activeTab.value = tab;
+        };
+
+        // Actions
+        const changeMonth = (delta) => {
+          let newM = currentMonth.value + delta;
+          let newY = currentYear.value;
+          if (newM > 12) {
+            newM = 1;
+            newY++;
+          } else if (newM < 1) {
+            newM = 12;
+            newY--;
+          }
+          currentMonth.value = newM;
+          currentYear.value = newY;
+          selectedDateStr.value = formatDateStr(newY, newM, 1);
+        };
+
+        const goToday = () => {
+          const now = new Date();
+          currentYear.value = now.getFullYear();
+          currentMonth.value = now.getMonth() + 1;
+          selectedDateStr.value = todayStr();
+        };
+
+        const selectDay = (cell) => {
+          selectedDateStr.value = cell.dateStr;
+        };
+
+        const toggleEventComplete = (id) => {
+          const evt = events.value.find(e => e.id === id);
+          if (evt) {
+            evt.completed = !evt.completed;
+            saveLocalStorage();
+          }
+        };
+
+        const deleteEvent = (id) => {
+          events.value = events.value.filter(e => e.id !== id);
+          saveLocalStorage();
+          showToast('已刪除該行程事項');
+        };
+
+        const openAddEventModal = (dateStr = null) => {
+          newEvent.value.date = dateStr || selectedDateStr.value;
+          newEvent.value.title = '';
+          newEvent.value.category = 'learning';
+          showAddModal.value = true;
+        };
+
+        const saveNewEvent = () => {
+          if (!newEvent.value.title.trim()) {
+            showToast('⚠️ 請輸入事項名稱');
+            return;
+          }
+          events.value.push({
+            id: Date.now().toString(),
+            date: newEvent.value.date,
+            title: newEvent.value.title.trim(),
+            category: newEvent.value.category,
+            completed: false
+          });
+          saveLocalStorage();
+          showAddModal.value = false;
+          showToast('✅ 成功新增行程！');
+        };
+
+        // Custom Sticker Upload Canvas Processing (Resized to 200x200 Compression)
+        const stickerInput = ref(null);
+        const openStickerUploadModal = (dateStr) => {
+          selectedDateStr.value = dateStr;
+          showStickerModal.value = true;
+        };
+
+        const handleStickerSelect = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              // Updated sticker canvas dimensions to 200px x 200px
+              canvas.width = 200;
+              canvas.height = 200;
+              const ctx = canvas.getContext('2d');
+
+              const minDim = Math.min(img.width, img.height);
+              const sx = (img.width - minDim) / 2;
+              const sy = (img.height - minDim) / 2;
+
+              // Rounded rectangle clip with 200px scale
+              ctx.beginPath();
+              ctx.roundRect(0, 0, 200, 200, 24);
+              ctx.clip();
+
+              ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 200, 200);
+
+              const compressedData = canvas.toDataURL('image/png', 0.90);
+              stickersMap.value[selectedDateStr.value] = compressedData;
+              saveLocalStorage();
+              showStickerModal.value = false;
+              showToast('✨ 成功加入 200x200 高畫質專屬日期貼圖！');
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        };
+
+        const removeSticker = (dateStr) => {
+          delete stickersMap.value[dateStr];
+          saveLocalStorage();
+          showToast('已移除該日期貼圖');
+        };
+
+        // Background Customization
+        const bgFileInput = ref(null);
+        const applyBgPreset = (preset) => {
+          selectedBgId.value = preset.id;
+          customBgImage.value = '';
+          saveLocalStorage();
+          showToast(`已套用 ${preset.name}`);
+        };
+
+        const handleBgImageUpload = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            customBgImage.value = event.target.result;
+            selectedBgId.value = 'custom';
+            saveLocalStorage();
+            showBgModal.value = false;
+            showToast('已更新個人化桌布背景！');
+          };
+          reader.readAsDataURL(file);
+        };
+
+        // Membership & Daily Checkin
+        const hasCheckedInToday = computed(() => {
+          return lastCheckInDate.value === todayStr();
+        });
+
+        const doDailyCheckIn = () => {
+          if (hasCheckedInToday.value) return;
+          userCoins.value += 1;
+          lastCheckInDate.value = todayStr();
+          saveLocalStorage();
+          showToast('🎁 每日簽到成功！獲得 +1 金幣！');
+        };
+
+        const activate7DayTrial = () => {
+          trialActive.value = true;
+          trialStartDate.value = todayStr();
+          trialDaysLeft.value = 7;
+          userTier.value = 'PRO MAX';
+          saveLocalStorage();
+          showToast('🚀 已成功開啟 7 天 PRO MAX 體驗！請維持每日連續登入！');
+        };
+
+        const upgradeTier = (tier, cost) => {
+          if (userCoins.value < cost) {
+            showToast(`⚠️ 金幣不足，尚需 ${cost - userCoins.value} 金幣`);
+            return;
+          }
+          userCoins.value -= cost;
+          userTier.value = tier;
+          saveLocalStorage();
+          showToast(`🎉 成功解鎖 ${tier} 尊榮會員！`);
+        };
+
+        // JSON Backup / Restore / Reset
+        const exportDataJSON = () => {
+          const data = {
+            events: events.value,
+            stickers: stickersMap.value,
+            tier: userTier.value,
+            coins: userCoins.value,
+            bg: selectedBgId.value
+          };
+          const jsonStr = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `iOS_Calendar_Backup_${todayStr()}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('已順利匯出行事曆 JSON 備份檔！');
+        };
+
+        const importFileInput = ref(null);
+        const triggerImportJSON = () => {
+          if (importFileInput.value) importFileInput.value.click();
+        };
+
+        const handleImportJSON = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const data = JSON.parse(event.target.result);
+              if (data.events) events.value = data.events;
+              if (data.stickers) stickersMap.value = data.stickers;
+              if (data.tier) userTier.value = data.tier;
+              if (data.coins) userCoins.value = data.coins;
+              saveLocalStorage();
+              showMenuModal.value = false;
+              showToast('成功匯入備份資料！');
+            } catch (err) {
+              showToast('❌ JSON 備份檔格式不符');
+            }
+          };
+          reader.readAsText(file);
+        };
+
+        const resetToDefaultData = () => {
+          events.value = [];
+          stickersMap.value = {};
+          saveLocalStorage();
+          showMenuModal.value = false;
+          showToast('已清空所有行程與貼圖紀錄！');
+        };
+
+        onMounted(() => {
+          loadLocalStorage();
+        });
+
+        return {
+          activeTab,
+          switchTab,
+          currentYear,
+          currentMonth,
+          selectedDateStr,
+          monthGridCells,
+          selectedDayObj,
+          currentWeekDays,
+          categories,
+          filteredEventsByTag,
+          selectedCategoryFilter,
+          showAddModal,
+          showStickerModal,
+          showBgModal,
+          showMembershipModal,
+          showMenuModal,
+          toastMessage,
+          newEvent,
+          userTier,
+          userCoins,
+          trialActive,
+          trialDaysLeft,
+          hasCheckedInToday,
+          selectedBgId,
+          bgPresets,
+          currentBgStyle,
+          stickerInput,
+          bgFileInput,
+          importFileInput,
+          changeMonth,
+          goToday,
+          selectDay,
+          toggleEventComplete,
+          deleteEvent,
+          openAddEventModal,
+          saveNewEvent,
+          openStickerUploadModal,
+          handleStickerSelect,
+          getStickerForDate,
+          removeSticker,
+          applyBgPreset,
+          handleBgImageUpload,
+          doDailyCheckIn,
+          activate7DayTrial,
+          upgradeTier,
+          exportDataJSON,
+          triggerImportJSON,
+          handleImportJSON,
+          resetToDefaultData,
+          getCategoryColor,
+          getCategoryLabel,
+          getCategoryCount,
+          getCategoryPercentage,
+          isToday
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
